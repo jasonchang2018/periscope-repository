@@ -1,0 +1,131 @@
+-- Last Update: 2018-11-06
+with post_filters as
+(
+  select dict.*
+    , case
+      when '[Aggregation_Level]' = 'Week' then (date_trunc('[Aggregation_Level]', dict.appldate + '1 day'::interval)::date -'1 day'::interval)::date 
+      else date_trunc('[Aggregation_Level]', dict.appldate)::date end as timestart
+  from
+    (
+      select
+        *
+        , case  when [Include_Night_Shift] = 1
+                and dict.processadmin in 
+                  (
+                    'Alma Martinez'
+                    , 'Amiee Moss'
+                    , 'Ana Saavedra'
+                    , 'Ana Tejeda'
+                    , 'Anais Garza'
+                    , 'Anais Santana'
+                    , 'Damary Gonzalez'
+                    , 'Diana Ruiz'
+                    , 'Faith Harris'
+                    , 'Gustavo Perez'
+                    , 'Holly Demons'
+                    , 'Ivan Cirkovic'
+                    , 'Jacinthia Gonzalez'
+                    , 'Jennifer Mendez'
+                    , 'Jessica Robinson'
+                    , 'Karen Cohn'
+                    , 'Keena Hannon'
+                    , 'Kelly Blackmon'
+                    , 'Kristine Garcia'
+                    , 'Lauren Mason'
+                    , 'Marquita Gill'
+                    , 'Nia Albertson'
+                    , 'Raven Holmes'
+                    , 'Shellie Gonzalez'
+                    , 'Tim Mannix'
+                    , 'Voula Eikosidekas'
+                    , 'Yovana Roy'
+                  )
+                then 1
+                when [Include_Day_Shift] = 1
+                and dict.processadmin not in 
+                  (
+                    'Alma Martinez'
+                    , 'Amiee Moss'
+                    , 'Ana Saavedra'
+                    , 'Ana Tejeda'
+                    , 'Anais Garza'
+                    , 'Anais Santana'
+                    , 'Damary Gonzalez'
+                    , 'Diana Ruiz'
+                    , 'Faith Harris'
+                    , 'Gustavo Perez'
+                    , 'Holly Demons'
+                    , 'Ivan Cirkovic'
+                    , 'Jacinthia Gonzalez'
+                    , 'Jennifer Mendez'
+                    , 'Jessica Robinson'
+                    , 'Karen Cohn'
+                    , 'Keena Hannon'
+                    , 'Kelly Blackmon'
+                    , 'Kristine Garcia'
+                    , 'Lauren Mason'
+                    , 'Marquita Gill'
+                    , 'Nia Albertson'
+                    , 'Raven Holmes'
+                    , 'Shellie Gonzalez'
+                    , 'Tim Mannix'
+                    , 'Voula Eikosidekas'
+                    , 'Yovana Roy'
+                  )
+                then 1
+                else 0
+                end as eligible
+      from
+        [bizops_application_details as dict]
+    ) as dict
+    inner join cloudlending.user as c_user on upper(dict.processadmin) = upper(c_user.name)
+  where [dict.appldate>=Timestart_Funding_Tree]
+  and [dict.appldate<=Timeend_Funding_Tree]
+  and [newuploanreloan=LoanType]
+  and [dict.adgrp=Source_Funding_Tree]
+  and [dict.admethod=Admethod_Funding_Tree]
+  and [dict.store=State]
+  and [dict.BU=BU]
+  and [dict.is_neuro_id<=Exclude_Neuro_ID]
+  and [dict.APR_Group=APR_States_Funding_Tree]
+  and [dict.payfreq=PayFreq_Funding_Tree]
+  and c_user.supervisor notnull
+  and c_user.supervisor not in ('Training', 'Juan Salgado')
+  and dict.processadmin not in ('Marcel Barnett')
+  and dict.eligible = 1
+)
+select
+  pf.processadmin
+  , 'LA' as "LA"
+  , coalesce(count(distinct case when pf.funded = 1 then pf.loanid end)::numeric/nullif(count(distinct case when pf.qualified = 1 or [pf.is_bcs_1>=Add_Back_BCS1] then pf.loanid end),0),0) as "Funding Rate"
+from
+  post_filters as pf
+  inner join
+    cloudlending.user as c_user
+    on pf.processadmin = c_user.name
+where
+  processadmin notnull
+  and [c_user.supervisor=Supervisor]
+group by
+  processadmin
+having
+  max(contractsigned) = 1 --Peter Proczek
+
+union all
+
+select
+  'ALL' as processadmin
+  , 'All' as "LA"
+  , coalesce(count(distinct case when pf.funded = 1 then pf.loanid end)::numeric/nullif(count(distinct case when pf.qualified = 1 or [pf.is_bcs_1>=Add_Back_BCS1] then pf.loanid end),0),0) as "Funding Rate"
+from
+  post_filters as pf
+where
+  processadmin notnull
+group by
+  "LA"
+
+
+
+order by
+--   processadmin asc
+  "Funding Rate" desc

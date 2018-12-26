@@ -1,0 +1,38 @@
+select
+  la_workload.loanid
+  , extract('epoch' from la_workload.appldate - hire_date.hired)/3600/24/30 as tenure_months
+  , la_workload.queue
+from
+  (
+    select
+       p_ap1.loanid
+       , p_ap1.appldate
+       , p_ap1.assigned
+       , count(p_ap1.loanid) as queue
+    from
+      public.all_allapps as p_ap1
+      inner join
+         public.all_allapps as p_ap2
+         on p_ap1.assigned = p_ap2.assigned
+         and p_ap1.appldate >= p_ap2.appldate
+         and (p_ap1.appldate <= p_ap2.decisiondate or p_ap2.decisiondate is null)
+    where
+     p_ap1.assigned notnull
+     and p_ap1.appldate >= '2017-04-01'
+    group by
+     p_ap1.loanid
+     , p_ap1.appldate
+     , p_ap1.assigned
+    order by appldate desc
+  ) as la_workload
+left join
+  (
+    select
+      assigned
+      , min(appldate) as hired
+    from
+      public.all_allapps
+    group by
+      assigned
+  ) as hire_date
+on la_workload.assigned = hire_date.assigned

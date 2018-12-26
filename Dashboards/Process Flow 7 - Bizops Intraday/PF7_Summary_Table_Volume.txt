@@ -1,0 +1,202 @@
+with post_filters as
+(
+  select dict.*
+  from [bizops_application_details as dict]
+  where [newuploanreloan=LoanType]
+  and [dict.adgrp=Source_Funding_Tree]
+  and [dict.admethod=Admethod_Funding_Tree]
+  and [dict.store=State]
+  and [dict.BU=BU]
+  and [dict.is_neuro_id<=Exclude_Neuro_ID]
+)
+, marketing as
+(
+  select
+    upper(to_char("Date", 'day')::text) as "DOW"
+    , "Date"
+    , sum(applications) as "Total"
+    , sum(qualified_apps) as "Qualified"
+    , sum(funded_loans) as "Funded"
+  from
+    (
+      select
+        *
+        , case  when new_refi = 'N' then 'NEW'
+                else 'UPLOAN'
+                end as new_refi_2
+      from
+        [marketing_view_360]
+    ) as a
+  where
+    ["Date">=Timestart_Funding_Tree]
+    and ["Date"<=Timeend_Funding_Tree]
+    and ["Channel"=Source_Funding_Tree]
+    and ["State"=State]
+    and ["BU"=BU]
+    and [new_refi_2=LoanType]
+  group by
+    "Date"
+    , "DOW"
+)
+, bv as
+(
+  select
+    c_ash.createddate::date as timestart
+    , count(distinct pf.loanid) as freq
+  from
+    post_filters as pf
+    left join
+      (
+        select
+          application
+          , min(createddate at time zone 'GMT' at time zone 'America/Chicago') as createddate
+        from
+          cloudlending.application_status_history as c_ash
+        where
+          old_value = 'BANK VERIFICATION COMPLETED'
+          and new_value = 'NEW - SCORECARD GENERATED'
+        group by
+          application
+      ) as c_ash
+      on pf.application = c_ash.application
+  where 
+    [c_ash.createddate::date>=Timestart_Funding_Tree]
+    and [c_ash.createddate::date<=Timeend_Funding_Tree]
+  group by
+    timestart 
+)
+, wos as
+(
+  select
+    c_ash.createddate::date as timestart
+    , count(distinct pf.loanid) as freq
+  from
+    post_filters as pf
+    left join
+      (
+        select
+          application
+          , min(createddate at time zone 'GMT' at time zone 'America/Chicago') as createddate
+        from
+          cloudlending.application_status_history as c_ash
+        where
+          old_value = 'NEW - PRICING GENERATED'
+          and new_value = 'WAITING ON STIPULATIONS'
+        group by
+          application
+      ) as c_ash
+      on pf.application = c_ash.application
+  where 
+    [c_ash.createddate::date>=Timestart_Funding_Tree]
+    and [c_ash.createddate::date<=Timeend_Funding_Tree]
+  group by
+    timestart 
+)
+, cs as
+(
+  select
+    c_ash.createddate::date as timestart
+    , count(distinct pf.loanid) as freq
+  from
+    post_filters as pf
+    left join
+      (
+        select
+          application
+          , min(createddate at time zone 'GMT' at time zone 'America/Chicago') as createddate
+        from
+          cloudlending.application_status_history as c_ash
+        where
+          old_value = 'WAITING ON STIPULATIONS'
+          and new_value = 'CONTRACT SIGNED'
+        group by
+          application
+      ) as c_ash
+      on pf.application = c_ash.application
+  where 
+    [c_ash.createddate::date>=Timestart_Funding_Tree]
+    and [c_ash.createddate::date<=Timeend_Funding_Tree]
+  group by
+    timestart 
+)
+, decisioned as
+(
+  with cs as
+  (
+    select 
+      application
+      , min(createddate at time zone 'GMT' at time zone 'America/Chicago') as createddate
+    from
+      cloudlending.application_status_history
+    where
+      new_value = 'CONTRACT SIGNED'
+    group by
+      application
+  )
+  , decisioned as
+  (
+    select
+      application
+      , max(createddate at time zone 'GMT' at time zone 'America/Chicago') as createddate
+    from 
+      cloudlending.application_status_history
+    where
+      new_value in ('DENIED','LOAN APPROVED')
+      and new_value != old_value
+    group by
+      application
+  )
+  select
+    d.createddate::date as timestart
+    , count(distinct pf.loanid) as freq
+  from
+    post_filters as pf
+    inner join
+      (
+        select
+          id
+        from
+          cloudlending.applications
+        where
+          denialreason not in ('Time In Pending','Withdraw')
+          or denialreason isnull
+      ) as c_app
+      on pf.application = c_app.id
+    inner join
+      cs
+      on pf.application = cs.application
+    left join
+      decisioned as d
+      on pf.application = d.application
+  where 
+    [d.createddate::date>=Timestart_Funding_Tree]
+    and [d.createddate::date<=Timeend_Funding_Tree]
+  group by
+    timestart
+)
+select
+  marketing."DOW"
+  , marketing."Date"
+  , marketing."Total"
+  , marketing."Qualified"
+  , bv.freq as "Bank Verified"
+  , wos.freq as "Pass Scorecard"
+  , cs.freq as "Contract Signed"
+  , d.freq as "CS Decisioned"
+  , marketing."Funded"
+from
+  marketing
+  left join
+    bv
+    on marketing."Date" = bv.timestart
+  left join
+    wos
+    on marketing."Date" = wos.timestart
+  left join
+    cs
+    on marketing."Date" = cs.timestart
+  left join
+    decisioned as d
+    on marketing."Date" = d.timestart
+order by
+  marketing."Date" desc

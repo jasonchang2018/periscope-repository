@@ -1,0 +1,130 @@
+-- Last Update: 2018-10-16
+with post_filters as
+(
+  select dict.*
+    , case
+      when '[Aggregation_Level]' = 'Week' then (date_trunc('[Aggregation_Level]', dict.appldate + '1 day'::interval)::date -'1 day'::interval)::date 
+      else date_trunc('[Aggregation_Level]', dict.appldate)::date end as timestart
+  from [bizops_application_details as dict]
+  where [dict.appldate>=Timestart_Funding_Tree]
+  and [dict.appldate<=Timeend_Funding_Tree]
+  and [newuploanreloan=LoanType]
+  and [dict.adgrp=Source_Funding_Tree]
+  and [dict.admethod=Admethod_Funding_Tree]
+  and [dict.store=State]
+  and [dict.BU=BU]
+  and [dict.is_neuro_id<=Exclude_Neuro_ID]
+)
+, completed as
+(
+  select distinct
+    application
+  from
+    cloudlending.application_status_history 
+  where
+    old_value = 'BANK VERIFICATION COMPLETED'
+    and new_value = 'NEW - SCORECARD GENERATED'
+)
+select
+  details.timestart
+  , count(distinct case when heap_attempts.ibv in ('DecisionLogic', 'MicroBilt')
+                        and heap_attempts."time" >= details.appldate
+                        and heap_attempts."time" <= details.appldate + '12 days'::interval
+                        then details.loanid end)::numeric/
+      count(distinct case when details.qualified = 1 or [details.is_bcs_1>=Add_Back_BCS1] then details.loanid end)
+      as "Attempt DL or MB"
+  , count(distinct case when heap_attempts.ibv in ('DecisionLogic', 'MicroBilt')
+                        and heap_attempts."time" >= details.appldate
+                        and heap_attempts."time" <= details.appldate + '12 days'::interval
+                        then details.loanid end)::numeric/
+      count(distinct case when details.qualified = 1 or [details.is_bcs_1>=Add_Back_BCS1] then details.loanid end)
+      as "Attempt DL or MB (line)"
+  , count(distinct case when heap_attempts.ibv = 'DecisionLogic'
+                        and heap_attempts."time" >= details.appldate
+                        and heap_attempts."time" <= details.appldate + '12 days'::interval
+                        then details.loanid end)::numeric/
+      count(distinct case when details.qualified = 1 or [details.is_bcs_1>=Add_Back_BCS1] then details.loanid end)
+      as "Attempt DL"
+  , count(distinct case when heap_attempts.ibv = 'DecisionLogic'
+                        and heap_attempts."time" >= details.appldate
+                        and heap_attempts."time" <= details.appldate + '12 days'::interval
+                        then details.loanid end)::numeric/
+      count(distinct case when details.qualified = 1 or [details.is_bcs_1>=Add_Back_BCS1] then details.loanid end)
+      as "Attempt DL (line)"
+  , count(distinct case when heap_attempts.ibv = 'MicroBilt'
+                        and heap_attempts."time" >= details.appldate
+                        and heap_attempts."time" <= details.appldate + '12 days'::interval
+                        then details.loanid end)::numeric/
+      count(distinct case when details.qualified = 1 or [details.is_bcs_1>=Add_Back_BCS1] then details.loanid end)
+      as "Attempt MB"
+  , count(distinct case when heap_attempts.ibv = 'MicroBilt'
+                        and heap_attempts."time" >= details.appldate
+                        and heap_attempts."time" <= details.appldate + '12 days'::interval
+                        then details.loanid end)::numeric/
+      count(distinct case when details.qualified = 1 or [details.is_bcs_1>=Add_Back_BCS1] then details.loanid end)
+      as "Attempt MB (line)"
+  , count(distinct case when c_mb.ibv_source = 'Manual' then details.loanid end)::numeric/
+      count(distinct case when details.qualified = 1 or [details.is_bcs_1>=Add_Back_BCS1] then details.loanid end)
+      as "Complete Manual"
+  , count(distinct case when c_mb.ibv_source = 'Manual' then details.loanid end)::numeric/
+      count(distinct case when details.qualified = 1 or [details.is_bcs_1>=Add_Back_BCS1] then details.loanid end)
+      as "Complete Manual (line)"
+  , count(distinct case when c.application notnull then details.loanid end)::numeric/
+      count(distinct case when heap_attempts.ibv in ('DecisionLogic', 'MicroBilt')
+                          and heap_attempts."time" >= details.appldate
+                          and heap_attempts."time" <= details.appldate + '12 days'::interval
+                          then details.loanid end)
+      as "All Completes/All Attempts"
+  , count(distinct case when c.application notnull then details.loanid end)::numeric/
+      count(distinct case when heap_attempts.ibv in ('DecisionLogic', 'MicroBilt')
+                          and heap_attempts."time" >= details.appldate
+                          and heap_attempts."time" <= details.appldate + '12 days'::interval
+                          then details.loanid end)
+      as "All Completes/All Attempts (line)"
+from
+  post_filters as details
+  left join
+    (
+      with unioned as
+      (
+        select
+          *
+          , 'DecisionLogic' as ibv
+        from
+          Heap.main_production._completed_decisionlogic_iframe_ as h_dl
+        union all
+        select
+          *
+          , 'MicroBilt' as ibv
+        from
+          Heap.main_production._completed_microbilt_iframe_ as h_mb
+      )
+      select
+        unioned.user_id
+        , unioned.session_id
+        , unioned."time"
+        , unioned.ibv
+        , h_users."identity"
+      from
+        unioned
+        left join
+          Heap.main_production.users as h_users
+          on unioned.user_id = h_users.user_id
+    ) as heap_attempts
+    on details.contact = heap_attempts."identity"      
+--     and heap_attempts."time" >= details.appldate
+--     and heap_attempts."time" <= details.appldate + '12 days'::interval
+  left join
+    (
+      select
+        application
+        , ibv_source
+      from
+        reporting.cloudlending.microbilt_information
+    ) as c_mb
+  on details.application = c_mb.application
+  left join
+    completed as c
+    on details.application = c.application
+group by
+  details.timestart

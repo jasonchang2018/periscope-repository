@@ -1,0 +1,40 @@
+# SQL output is imported as a dataframe variable called "df"
+# Use Periscope to visualize a dataframe or show text by passing data to periscope.table() or periscope.text() respectively. Show an image by calling periscope.image() after your plot.
+# Dynamic title
+# Kickback & alignment
+
+library(ggplot2)
+
+sums = data.frame(names(df)[-1], colSums(df[,-1]), rep("Volume", ncol(df)-1))
+sums = sums[which(!(sums[,1] %in% c("newentered", "bizrulespassed"))),]
+rownames(sums) = c()
+colnames(sums) = c("status", "volume", "type")
+sums = sums[which(is.na(sums$status)==FALSE),]
+
+halfdiff = data.frame(sums$status, (sums[1,2]-sums[,2])/2, rep("", nrow(sums)))
+rownames(halfdiff) = c()
+colnames(halfdiff) = c("status", "volume", "type")
+
+totals = rbind(sums, halfdiff)
+percent = vector(length=nrow(totals))
+percent = paste0(trimws(format(round(totals$volume/totals$volume[1]*100,1))),"%")
+totals = cbind(totals, percent)
+totals$status = rep(c("1Qualified", "2BankVerified", "3PassScorecard", "4ContractSigned", 
+                      "5Decisioned", 
+                      "6Funded"),2)
+colors = c("skyblue2", "tomato", "lightseagreen", "mediumpurple1", 
+           "yellow green", 
+           "hotpink")
+totals = cbind(totals, colors)
+
+p1 = ggplot(data = totals, mapping = aes(x = reorder(status, volume), y = volume, fill = type, alpha = type), fill=colors) + labs(x = "Status", y = "Volume")
+p1
+p2 = p1 + geom_col(width = 0.75, fill = "sky blue") + scale_alpha_discrete(range = c(1,0)) + theme(axis.text.x = element_blank(), axis.ticks.x = element_blank()) + coord_flip() #+ scale_fill_manual("legend", values = colors) 
+p2
+p3 = p2 + geom_text(aes(label = paste(format(round(volume,0), big.mark = ","), "\n", totals$percent)), position = position_stack(vjust = 0.5), size=3)
+p3
+
+
+
+
+periscope.image()

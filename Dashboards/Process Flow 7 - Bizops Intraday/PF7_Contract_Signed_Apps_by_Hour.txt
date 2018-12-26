@@ -1,0 +1,44 @@
+--yes_cache
+-- Last Update: 2018-10-16
+with post_filters as
+(
+  select dict.*
+  from [bizops_application_details as dict]
+  where [newuploanreloan=LoanType]
+  and [dict.adgrp=Source_Funding_Tree]
+  and [dict.admethod=Admethod_Funding_Tree]
+  and [dict.store=State]
+  and [dict.BU=BU]
+  and [dict.is_neuro_id<=Exclude_Neuro_ID]
+)
+select
+  case
+    when '[Aggregation_Level]' = 'Week' then (date_trunc('[Aggregation_Level]', c_ash.createddate + '1 day'::interval)::date -'1 day'::interval)::date 
+    else date_trunc('[Aggregation_Level]', c_ash.createddate)::date 
+    end as timestart
+  , extract('hour' from date_trunc('hour', c_ash.createddate))::int as hour
+  , count(distinct pf.loanid) as freq
+from
+  post_filters as pf
+  left join
+    (
+      select
+        application
+        , min(createddate at time zone 'GMT' at time zone 'America/Chicago') as createddate
+      from
+        cloudlending.application_status_history as c_ash
+      where
+        old_value = 'WAITING ON STIPULATIONS'
+        and new_value = 'CONTRACT SIGNED'
+      group by
+        application
+    ) as c_ash
+    on pf.application = c_ash.application
+where 
+  [c_ash.createddate::date>=Timestart_Funding_Tree]
+  and [c_ash.createddate::date<=Timeend_Funding_Tree]
+group by
+  timestart
+  , hour
+order by
+  hour desc

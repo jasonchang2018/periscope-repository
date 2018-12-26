@@ -1,0 +1,17 @@
+library(ggplot2)
+
+levers2 = rep(c("2BV/Q", "3Pass Scorecard", "4Contract Signed", "5Decisioned", "6Funded/Decisioned"),2)
+values = unlist(c(df[which(df$period == "P1"), 3:7], df[which(df$period == "P2"), 3:7])) #P1 THEN P2
+values_format = paste(round(100*values,1), "%", sep = "")
+period = c(rep("P1", length(levers2)/2), rep("P2", length(levers2)/2))
+
+df2 = data.frame(levers2, values, values_format, period)
+
+p1 = ggplot(data = df2, mapping = aes(x = levers2, y = values, fill = period)) + geom_col(position = "dodge")
+p1
+p2 = p1 + scale_fill_manual("legend", values = c("P1" = "deepskyblue3", "P2" = "deepskyblue"))
+p2
+p3 = p2 + scale_y_continuous(labels = scales::percent) + geom_text(aes(label = values_format), position = position_dodge(width = 0.9), vjust = -0.5, size = 4.0) + labs(x = "Levers", y = "%Pass Thru", title = paste("Funding Rate Bridge - Pass Thru Rates", "\n", "From ", df$startdate[which(df$period == "P1")], " to ", df$enddate[which(df$period == "P1")], "\n", "Through ", df$startdate[which(df$period == "P2")], " to ", df$enddate[which(df$period == "P2")])) + theme(plot.title = element_text(hjust = 0.5))
+p3
+
+periscope.image()
