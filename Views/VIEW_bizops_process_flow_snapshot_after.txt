@@ -1,0 +1,84 @@
+-- Last Update: 2018-12-03
+select
+  loanid
+
+  , case  when (c_ash.old_value = 'BUSINESS RULES PASSED'
+          and c_ash.new_value = 'BUREAU APPROVED')
+          or pf.is_bcs_1 = 1
+          then 1 else 0 end as "Qualified with BCS"
+
+  , case  when (c_ash.old_value = 'BUSINESS RULES PASSED'
+          and c_ash.new_value = 'BUREAU APPROVED')
+          then 1 else 0 end as "Qualified"
+
+  , case  when attempt_ibv_time notnull
+          and 
+            (
+              (date_trunc('week', attempt_ibv_time::date + '1 day'::interval)::date - '1 day'::interval)::date = 
+              (date_trunc('week', pf.appldate::date + '1 day'::interval)::date - '1 day'::interval)::date
+              or
+              (
+                (date_trunc('week', attempt_ibv_time::date + '1 day'::interval)::date - '1 day'::interval)::date = 
+                ((date_trunc('week', pf.appldate::date + '1 day'::interval)::date - '1 day'::interval)::date + '1 week'::interval)::date
+                and
+                extract(dow from attempt_ibv_time) < extract(dow from now() at time zone 'GMT' at time zone 'America/Chicago')
+              )
+            )
+          then 1 else 0 end as "Attempted IBV"
+
+  , case  when c_ash.old_value = 'BANK VERIFICATION COMPLETED' 
+          and c_ash.new_value = 'NEW - SCORECARD GENERATED'
+          then 1 else 0 end as "BV"
+
+  , case  when old_value = 'NEW - PRICING GENERATED'
+          and new_value = 'WAITING ON STIPULATIONS'
+          then 1 else 0 end as "SC"
+
+  , case  when c_ash.new_value = 'CONTRACT SIGNED'
+          then 1 else 0 end as "CS"
+
+  , case  --when cs_decision_time >= cs_time
+          when cs_decision_time notnull
+          and 
+            (
+              (date_trunc('week', cs_decision_time::date + '1 day'::interval)::date - '1 day'::interval)::date = 
+              (date_trunc('week', pf.appldate::date + '1 day'::interval)::date - '1 day'::interval)::date
+              or
+              (
+                (date_trunc('week', cs_decision_time::date + '1 day'::interval)::date - '1 day'::interval)::date = 
+                ((date_trunc('week', pf.appldate::date + '1 day'::interval)::date - '1 day'::interval)::date + '1 week'::interval)::date
+                and
+                extract(dow from cs_decision_time) < extract(dow from now() at time zone 'GMT' at time zone 'America/Chicago')
+              )
+            )
+          then 1 else 0 end as "CS Decisioned"
+
+  , case  when new_value = 'LOAN APPROVED'
+          then 1 else 0 end as "Funded"
+  from
+  [bizops_application_details as pf]
+    inner join
+      cloudlending.application_status_history as c_ash
+      on c_ash.application = pf.application
+      and 
+        (
+          (date_trunc('week', (c_ash.createddate at time zone 'GMT' at time zone 'America/Chicago')::date + '1 day'::interval)::date - '1 day'::interval)::date = 
+          (date_trunc('week', pf.appldate::date + '1 day'::interval)::date - '1 day'::interval)::date
+        or
+          (date_trunc('week', (c_ash.createddate at time zone 'GMT' at time zone 'America/Chicago')::date + '1 day'::interval)::date - '1 day'::interval)::date = 
+          ((date_trunc('week', pf.appldate::date + '1 day'::interval)::date - '1 day'::interval)::date + '1 week'::interval)::date
+        )
+
+where
+  (
+    (date_trunc('week', (c_ash.createddate at time zone 'GMT' at time zone 'America/Chicago')::date + '1 day'::interval)::date - '1 day'::interval)::date = 
+    (date_trunc('week', pf.appldate::date + '1 day'::interval)::date - '1 day'::interval)::date
+    or
+    (
+      (date_trunc('week', (c_ash.createddate at time zone 'GMT' at time zone 'America/Chicago')::date + '1 day'::interval)::date - '1 day'::interval)::date = 
+      ((date_trunc('week', pf.appldate::date + '1 day'::interval)::date - '1 day'::interval)::date + '1 week'::interval)::date
+      and
+      extract(dow from c_ash.createddate at time zone 'GMT' at time zone 'America/Chicago') < extract(dow from now() at time zone 'GMT' at time zone 'America/Chicago')
+    )
+  )
+  and pf.applweek <= (now() at time zone 'GMT' at time zone 'America/Chicago')::date - '7 days'::interval

@@ -1,0 +1,377 @@
+with neuro_id as
+(
+  select distinct
+      id as application
+  from
+    cloudlending.applications
+  where
+    fast_track_status = 'Enabled'
+    and date_trunc('month', createddate)::date >= '2018-09-01'
+)
+, senttoUW_apps as
+(
+  select distinct
+    name
+  from
+    (
+      select 
+        a.name 
+        , coalesce(u.department , u.title , u.supervisor) depart
+        , case when h.newvalue = '00G50000002rxZ4EAI' then 'UW Q' else u1.department end as UW_Department
+        , case when h.newvalue  = '00G50000002rxZ4EAI'  
+            or (u1.name = 'Areen Akel' and h.createddate >= '2018-04-03')
+            or (u1.name = 'Josh Moran' and h.createddate >= '2018-06-12')
+            or (u1.name = 'Joshua Huerta' and h.createddate >= '2018-05-14' and h.createddate <= '2018-07-30')
+            or (u1.name = 'Taylor Lee' and h.createddate >= '2018-07-24')
+            or (u1.name = 'Emerita Garcia' and h.createddate >= '2018-07-24')
+            or (u1.name = 'Paula Pantoja' and h.createddate >= '2018-07-31')
+            or (u1.name = 'Elexus McKay' and h.createddate >= '2018-09-18')
+            or (u1.name = 'Diamond Owens' and h.createddate >= '2018-09-18')
+            or (u1.name in ('Jennifer Sher', 'Christa Busse', 'Fernanda Delgado', 'Kendra Gonzalez', 'Cecily Rivera', 'Zach Hurd', 'Reem Hindi', 'UW Queue'))
+            then 1 else 0 end as UWdept
+        , row_number() OVER (PARTITION BY a.name, coalesce(coalesce(u.department , u.title , u.supervisor), case when h.newvalue = '00G50000002rxZ4EAI' or u1.department is not null then 'UW Q' else null end) ORDER BY h.createddate desc) rn			
+      from 
+        cloudlending.applications as a 
+        inner join 
+          cloudlending.applications_history as h 
+          on h.parentid::text = a.id 
+          and h.oldvalue <> h.newvalue
+          and h.field in ('Owner')
+          and (left(h.newvalue,2) ='00') 
+        inner join 
+          (
+            select
+              loanid
+            from
+              public.all_allapps
+            where
+              "left"(denygrp,1) > '2'
+          ) as BA
+          on a."name" = BA.loanid     
+        inner join
+          (
+            select distinct
+              application
+            from
+              cloudlending.application_status_history as c_ash
+            where
+              old_value = 'WAITING ON STIPULATIONS'
+              and new_value = 'CONTRACT SIGNED'
+          ) as cs_apps
+          on a.id = cs_apps.application  
+--       left join
+--         neuro_id as nid
+--         on a.id = nid.application  
+      LEFT JOIN cloudlending.user u ON h.newvalue = u.id AND u.name not in (
+                    'Jennifer Sher',
+                    'Christa Busse',
+                    'Fernanda Delgado',
+                    'Kendra Gonzalez',
+                    'Cecily Rivera',
+                    'Zach Hurd',
+                    'Reem Hindi',
+                    'Areen Akeel',
+                    'Josh Moran',
+                    'Joshua Huerta',
+                    'Emerita Garica',
+                    'Taylor Lee',
+                    'Paula Pantoja'
+                    'Elexus McKay'
+                    'Diamond Owens'
+                    'UW Queue')
+        LEFT JOIN cloudlending.user u1 ON u1.id = h.newvalue AND u1.name in (
+                    'Jennifer Sher',
+                    'Christa Busse',
+                    'Fernanda Delgado',
+                    'Kendra Gonzalez',
+                    'Cecily Rivera',
+                    'Zach Hurd',
+                    'Reem Hindi',
+                    'Areen Akeel',
+                    'Josh Moran',
+                    'Joshua Huerta',
+                    'Emerita Garica',
+                    'Taylor Lee',
+                    'Paula Pantoja'
+                    'Elexus McKay'
+                    'Diamond Owens'
+                    'UW Queue')
+--       where
+--         nid.application isnull
+      order by h.createddate
+    ) t
+  where rn = 1
+  and  (depart is not null or uw_department is not null)
+  and UWdept = 1
+)
+-- , heap_attempts as
+-- (
+--   with unioned as
+--   (
+--     select
+--       user_id
+--       , session_id
+--       , "time"
+--       , 'DecisionLogic' as ibv
+--     from
+--       Heap.main_production._completed_decisionlogic_iframe_ as h_dl
+--     union all
+--     select
+--       user_id
+--       , session_id
+--       , "time"
+--       , 'MicroBilt' as ibv
+--     from
+--       Heap.main_production._completed_microbilt_iframe_ as h_mb
+--   )
+--   select
+--     unioned.user_id
+--     , unioned.session_id
+--     , unioned."time"
+--     , unioned.ibv
+--     , h_users."identity"
+--   from
+--     unioned
+--     left join
+--       Heap.main_production.users as h_users
+--       on unioned.user_id = h_users.user_id
+-- )
+, assigned as
+(
+  with assigned_time as
+  (
+    select
+      *
+    from
+      (
+        select
+          parentid
+          , createddate at time zone 'GMT' at time zone 'America/Chicago' as createddate
+          , field
+          , oldvalue
+          , newvalue
+          , row_number() over (partition by parentid order by createddate asc) as rn_1
+        from
+          cloudlending.applications_history
+        where
+          field = 'Owner'
+          and "left"(oldvalue,2) != '00'
+          and "right"(oldvalue,3) = 'API'
+          and upper(newvalue) != 'DENIED'
+      ) as all_assigns
+    where
+      rn_1 = 1
+  )
+  select
+    parentid as application
+    , newvalue as first_assigned
+    , createddate as time_assigned
+    , status_createddate as time_prior_status
+    , new_value as status_assigned
+  from
+    (
+      select
+        assigned_time.*
+        , c_ash.createddate at time zone 'GMT' at time zone 'America/Chicago' as status_createddate
+        , old_value
+        , new_value
+        , row_number() over (partition by assigned_time.parentid order by c_ash.createddate desc) as rn_2
+      from
+        cloudlending.application_status_history as c_ash
+        inner join
+          assigned_time
+          on c_ash.application = assigned_time.parentid
+          and assigned_time.createddate >= c_ash.createddate at time zone 'GMT' at time zone 'America/Chicago'
+    ) as statuses_before
+  where
+    rn_2 = 1
+)
+, q_time as
+(
+  select
+    application
+    , min(createddate at time zone 'GMT' at time zone 'America/Chicago') as createddate
+  from
+    cloudlending.application_status_history
+  where
+    old_value = 'BUSINESS RULES PASSED'
+    and new_value = 'BUREAU APPROVED'
+  group by
+    application
+)
+, bv_time as
+(
+  select
+    application
+    , min(createddate at time zone 'GMT' at time zone 'America/Chicago') as createddate
+  from
+    cloudlending.application_status_history
+  where
+    (old_value = 'BANK VERIFICATION COMPLETED' and new_value = 'NEW - SCORECARD GENERATED')
+    or new_value = 'BANK VERIFICATION COMPLETED'
+  group by
+    application
+)
+, wos_time as
+(
+  select
+    application
+    , min(createddate at time zone 'GMT' at time zone 'America/Chicago') as createddate
+  from
+    cloudlending.application_status_history
+  where
+    old_value = 'NEW - PRICING GENERATED'
+    and new_value in ('WAITING ON STIPULATIONS', 'CONTRACT SIGNED')
+  group by
+    application
+)
+, cs_time as
+(
+  select
+    application
+    , min(createddate at time zone 'GMT' at time zone 'America/Chicago') as createddate
+  from
+    cloudlending.application_status_history
+  where
+    old_value in ('NEW - PRICING GENERATED', 'WAITING ON STIPULATIONS')
+    and new_value = 'CONTRACT SIGNED'
+  group by
+    application
+)
+, cs_decision_time as
+(
+  select
+    c_ash.application
+    , max(c_ash.createddate at time zone 'GMT' at time zone 'America/Chicago') as createddate
+  from
+    cloudlending.application_status_history as c_ash
+    inner join
+      cloudlending.applications as c_app
+      on c_ash.application = c_app.id
+    inner join
+      cs_time as cs
+      on c_ash.application = cs.application
+  where
+    new_value in ('DENIED', 'LOAN APPROVED')
+    and old_value != new_value
+    and (denialreason not in ('Time In Pending', 'Withdraw') or denialreason isnull)
+  group by
+    c_ash.application
+)
+, funded_time as
+(
+  select
+    application
+    , max(createddate at time zone 'GMT' at time zone 'America/Chicago') as createddate
+  from
+    cloudlending.application_status_history
+  where
+    new_value = 'LOAN APPROVED'
+  group by
+    application
+)
+, final_time as
+(
+  select
+    c_ash.application
+    , max(c_ash.createddate at time zone 'GMT' at time zone 'America/Chicago') as createddate
+  from
+    cloudlending.application_status_history as c_ash
+  where
+    new_value in ('DENIED', 'LOAN APPROVED')
+    and old_value != new_value
+  group by
+    c_ash.application
+)
+select
+  p_ap.loanid
+  , case when nid.application notnull then 1 else 0 end as is_neuro_id
+  , case when c_app.denialreason = 'Denied - BCS Scorecard' or c_app.denial_reason = 'Denied - BCS Scorecard' then 1 else 0 end as is_bcs_1
+
+
+  , count(distinct case when new_value = 'NEW - ENTERED' then p_ap.loanid end) as newentered
+  , count(distinct case when c_ash.old_value = 'NEW - ENTERED' and c_ash.new_value = 'BUSINESS RULES PASSED' then p_ap.loanid end) as bizrulespassed
+
+  , count(distinct case when "left"(p_ap.denygrp,1) > '2' then p_ap.loanid end) as qualified
+--   , count(distinct case when heap_attempts."time" >= p_ap.appldate and heap_attempts."time" <= p_ap.appldate + '12 days'::interval then p_ap.loanid end) as attempt_ibv
+  , count(distinct case when (c_ash.old_value = 'BANK VERIFICATION COMPLETED' and c_ash.new_value = 'NEW - SCORECARD GENERATED')
+                        or c_ash.new_value = 'BANK VERIFICATION COMPLETED'
+                        then p_ap.loanid end) as bankverified
+--   , count(distinct case when c_ash.new_value = 'NEW - SCORECARD GENERATED' then p_ap.loanid end) as bankverified
+
+  , count(distinct case when c_ash.old_value = 'NEW - PRICING GENERATED' and c_ash.new_value in ('CONTRACT SIGNED', 'WAITING ON STIPULATIONS') then p_ap.loanid end) as passscorecardratecard
+  , count(distinct case when c_ash.old_value in ('NEW - PRICING GENERATED', 'WAITING ON STIPULATIONS') and c_ash.new_value = 'CONTRACT SIGNED' then p_ap.loanid end) as contractsigned
+  , count(distinct case when uw.name notnull then p_ap.loanid end) as uwq
+  , count(distinct case when c_ash.old_value in ('NEW - PRICING GENERATED', 'WAITING ON STIPULATIONS') and c_ash.new_value = 'CONTRACT SIGNED' and "left"(p_ap.denygrp,1) not in ('4','5','8') then p_ap.loanid end) as cs_decisioned
+  , count(distinct case when "left"(p_ap.denygrp,1) = '9' then p_ap.loanid end) as funded
+
+  , assigned.first_assigned
+  , assigned.time_assigned
+  , assigned.time_prior_status
+  , assigned.status_assigned
+
+  , q.createddate as q_time
+  , bv.createddate as bv_time
+  , wos.createddate as wos_time
+  , cs.createddate as cs_time
+  , cs_decision.createddate as cs_decision_time
+  , funded.createddate as funded_time
+  , final.createddate as final_time
+from
+  public.all_allapps as p_ap
+  inner join
+    cloudlending.applications as c_app
+    on p_ap.loanid = c_app."name"
+  inner join
+    cloudlending.application_status_history as c_ash
+    on c_app.id = c_ash.application
+  left join
+    senttoUW_apps as uw
+    on p_ap.loanid = uw."name"
+  left join
+    assigned
+    on c_app.id = assigned.application
+  left join
+    neuro_id as nid
+    on c_app.id = nid.application
+  left join
+    q_time as q
+    on c_app.id = q.application
+  left join
+    bv_time as bv
+    on c_app.id = bv.application
+  left join
+    wos_time as wos
+    on c_app.id = wos.application
+  left join
+    cs_time as cs
+    on c_app.id = cs.application
+  left join
+    cs_decision_time as cs_decision
+    on c_app.id = cs_decision.application
+  left join
+    funded_time as funded
+    on c_app.id = funded.application
+  left join
+    final_time as final
+    on c_app.id = final.application
+--   left join
+--     heap_attempts
+--     on c_app.contact = heap_attempts."identity"
+-- where
+--   nid.application isnull
+group by
+  p_ap.loanid
+  , is_neuro_id
+  , is_bcs_1
+  , assigned.first_assigned
+  , assigned.time_assigned
+  , assigned.time_prior_status
+  , assigned.status_assigned
+  , q.createddate
+  , bv.createddate
+  , wos.createddate
+  , cs.createddate
+  , cs_decision.createddate
+  , funded.createddate
+  , final.createddate

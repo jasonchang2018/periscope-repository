@@ -1,0 +1,29 @@
+library(ggplot2)
+
+levers = c("2BV/Q", "3Pass Scorecard", "4Contract Signed", "5Decisioned", "6Funded/Decisioned", "Funding Rate")
+bridge = c((df$bvq[which(df$period == "P2")]-df$bvq[which(df$period == "P1")])
+           , (df$scorecardbv[which(df$period == "P2")]-df$scorecardbv[which(df$period == "P1")])
+           , (df$contractscorecard[which(df$period == "P2")]-df$contractscorecard[which(df$period == "P1")])
+           , (df$decisionedcontract[which(df$period == "P2")]-df$decisionedcontract[which(df$period == "P1")])
+           , (df$fundeddecisioned[which(df$period == "P2")]-df$fundeddecisioned[which(df$period == "P1")])
+           , (df$fundingrate[which(df$period == "P2")]-df$fundingrate[which(df$period == "P1")]))
+
+color = c(ifelse(bridge[1] >= 0, "green", "red")
+          , ifelse(bridge[2] >= 0, "green", "red")
+          , ifelse(bridge[3] >= 0, "green", "red")
+          , ifelse(bridge[4] >= 0, "green", "red")
+          , ifelse(bridge[5] >= 0, "green", "red")
+          , ifelse(bridge[6] >= 0, "green", "red"))
+
+values_format = c(paste(round(10000*bridge, 0), "bps", sep = " "))
+
+df2 = data.frame(levers, bridge, color, values_format)
+
+p1 = ggplot(data = df2, mapping = aes(x = levers, y = bridge*10000, fill = color)) + geom_col()
+p1
+p2 = p1 + scale_fill_manual("legend", values = c("red" = "brown1", "green" = "springgreen4"))
+p2
+p3 = p2 + geom_text(aes(label = values_format), position = "stack", vjust = -0.5, size = 4.0) + labs(x = "Levers", y = "BPS", title = paste("Funding Rate Bridge - Pass Thru Rates Changes", "\n", "From ", df$startdate[which(df$period == "P1")], " to ", df$enddate[which(df$period == "P1")], "\n", "Through ", df$startdate[which(df$period == "P2")], " to ", df$enddate[which(df$period == "P2")])) + theme(plot.title = element_text(hjust = 0.5), legend.position = "none")
+p3
+
+periscope.image()
