@@ -14,20 +14,33 @@ select
   , case  when attempt_ibv_time notnull
           and 
             (
-              date_trunc('week', attempt_ibv_time)::date = date_trunc('week', pf.appldate)::date
+              (
+                (
+                  extract(dow from now() at time zone 'GMT' at time zone 'America/Chicago') != 1
+                  and date_trunc('week', attempt_ibv_time)::date = date_trunc('week', pf.appldate)::date
+                )
+                or
+                (
+                  extract(dow from now() at time zone 'GMT' at time zone 'America/Chicago') = 1
+                  and date_trunc('week', attempt_ibv_time)::date = date_trunc('week', pf.appldate)::date
+                  and extract(dow from attempt_ibv_time) > 0
+                )
+              )              
               or
               (
                 date_trunc('week', attempt_ibv_time)::date = (date_trunc('week', pf.appldate)::date + '1 week'::interval)::date
+                and extract(dow from now() at time zone 'GMT' at time zone 'America/Chicago') != 1
                 and
                   (
                     (
-                      extract(dow from now() at time zone 'GMT' at time zone 'America/Chicago') != 0
-                      and extract(dow from attempt_ibv_time) < extract(dow from now() at time zone 'GMT' at time zone 'America/Chicago')
+                      extract(dow from now() at time zone 'GMT' at time zone 'America/Chicago') >= 2
+                      and extract(dow from attempt_ibv_time) < extract(dow from now() at time zone 'GMT' at time zone 'America/Chicago') - 1
                     )
                     or
                     (
                       extract(dow from now() at time zone 'GMT' at time zone 'America/Chicago') = 0
                       and extract(dow from attempt_ibv_time) > extract(dow from now() at time zone 'GMT' at time zone 'America/Chicago')
+                      and extract(dow from attempt_ibv_time) <= 5
                     )
 --                     extract(dow from attempt_ibv_time) < extract(dow from now() at time zone 'GMT' at time zone 'America/Chicago')
 --                     or
@@ -37,8 +50,8 @@ select
             )
           then 1 else 0 end as "Attempted IBV"
 
-  , case  when c_ash.old_value = 'BANK VERIFICATION COMPLETED' 
-          and c_ash.new_value = 'NEW - SCORECARD GENERATED'
+  , case  when (c_ash.old_value = 'BANK VERIFICATION COMPLETED' and c_ash.new_value = 'NEW - SCORECARD GENERATED')
+          or new_value = 'BANK VERIFICATION COMPLETED'
           then 1 else 0 end as "BV"
 
   , case  when old_value = 'NEW - PRICING GENERATED'
@@ -51,20 +64,32 @@ select
   , case  when cs_decision_time notnull
           and 
             (
-              date_trunc('week', cs_decision_time)::date = date_trunc('week', pf.appldate)::date
+              (
+                (
+                  extract(dow from now() at time zone 'GMT' at time zone 'America/Chicago') != 1
+                  and date_trunc('week', cs_decision_time)::date = date_trunc('week', pf.appldate)::date
+                )
+                or
+                (
+                  extract(dow from now() at time zone 'GMT' at time zone 'America/Chicago') = 1
+                  and date_trunc('week', cs_decision_time)::date = date_trunc('week', pf.appldate)::date
+                  and extract(dow from cs_decision_time) <= 6
+                )
+              )              
               or
               (
                 date_trunc('week', cs_decision_time)::date = (date_trunc('week', pf.appldate)::date + '1 week'::interval)::date
                 and
                   (
                     (
-                      extract(dow from now() at time zone 'GMT' at time zone 'America/Chicago') != 0
-                      and extract(dow from cs_decision_time) < extract(dow from now() at time zone 'GMT' at time zone 'America/Chicago')
+                      extract(dow from now() at time zone 'GMT' at time zone 'America/Chicago') >= 2
+                      and extract(dow from cs_decision_time) < extract(dow from now() at time zone 'GMT' at time zone 'America/Chicago') - 1
                     )
                     or
                     (
                       extract(dow from now() at time zone 'GMT' at time zone 'America/Chicago') = 0
                       and extract(dow from cs_decision_time) > extract(dow from now() at time zone 'GMT' at time zone 'America/Chicago')
+                      and extract(dow from cs_decision_time) <= 5
                     )
 --                     extract(dow from cs_decision_time) < extract(dow from now() at time zone 'GMT' at time zone 'America/Chicago')
 --                     or
@@ -91,20 +116,32 @@ select
 
 where
   (
-    date_trunc('week', c_ash.createddate at time zone 'GMT' at time zone 'America/Chicago')::date = date_trunc('week', pf.appldate)::date
+    (
+      (
+        extract(dow from now() at time zone 'GMT' at time zone 'America/Chicago') != 1
+        and date_trunc('week', c_ash.createddate at time zone 'GMT' at time zone 'America/Chicago')::date = date_trunc('week', pf.appldate)::date
+      )
+      or
+      (
+        extract(dow from now() at time zone 'GMT' at time zone 'America/Chicago') = 1
+        and date_trunc('week', c_ash.createddate at time zone 'GMT' at time zone 'America/Chicago')::date = date_trunc('week', pf.appldate)::date
+        and extract(dow from c_ash.createddate at time zone 'GMT' at time zone 'America/Chicago') <= 6
+      )
+    )              
     or
     (
       date_trunc('week', c_ash.createddate at time zone 'GMT' at time zone 'America/Chicago')::date = (date_trunc('week', pf.appldate)::date + '1 week'::interval)::date
       and
         (
           (
-            extract(dow from now() at time zone 'GMT' at time zone 'America/Chicago') != 0
-            and extract(dow from c_ash.createddate at time zone 'GMT' at time zone 'America/Chicago') < extract(dow from now() at time zone 'GMT' at time zone 'America/Chicago')
+            extract(dow from now() at time zone 'GMT' at time zone 'America/Chicago') >= 2
+            and extract(dow from c_ash.createddate at time zone 'GMT' at time zone 'America/Chicago') < extract(dow from now() at time zone 'GMT' at time zone 'America/Chicago') - 1
           )
           or
           (
             extract(dow from now() at time zone 'GMT' at time zone 'America/Chicago') = 0
             and extract(dow from c_ash.createddate at time zone 'GMT' at time zone 'America/Chicago') > extract(dow from now() at time zone 'GMT' at time zone 'America/Chicago')
+            and extract(dow from c_ash.createddate at time zone 'GMT' at time zone 'America/Chicago') <= 5
           )
 --           extract(dow from c_ash.createddate at time zone 'GMT' at time zone 'America/Chicago') < extract(dow from now() at time zone 'GMT' at time zone 'America/Chicago')
 --           or

@@ -23,7 +23,7 @@ select
                 (
                   extract(dow from now() at time zone 'GMT' at time zone 'America/Chicago') = 1
                   and date_trunc('week', attempt_ibv_time)::date = date_trunc('week', pf.appldate)::date
-                  and extract(dow from attempt_ibv_time) <= 6
+                  and extract(dow from attempt_ibv_time) > 0
                 )
               )              
               or
@@ -50,8 +50,8 @@ select
             )
           then 1 else 0 end as "Attempted IBV"
 
-  , case  when c_ash.old_value = 'BANK VERIFICATION COMPLETED' 
-          and c_ash.new_value = 'NEW - SCORECARD GENERATED'
+  , case  when (c_ash.old_value = 'BANK VERIFICATION COMPLETED' and c_ash.new_value = 'NEW - SCORECARD GENERATED')
+          or new_value = 'BANK VERIFICATION COMPLETED'
           then 1 else 0 end as "BV"
 
   , case  when old_value = 'NEW - PRICING GENERATED'
