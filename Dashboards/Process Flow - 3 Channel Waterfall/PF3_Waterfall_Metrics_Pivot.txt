@@ -1,0 +1,62 @@
+-- Last Update: 2018-10-16
+with post_filters as
+(
+  select dict.*
+    , case
+      when '[Aggregation_Level]' = 'Week' then dict.applweek
+      else date_trunc('[Aggregation_Level]', dict.appldate)::date end as timestart
+  from [bizops_application_details as dict]
+  where [dict.appldate>=Timestart_Funding_Tree]
+  and [dict.appldate<=Timeend_Funding_Tree]
+  and [newuploanreloan=LoanType]
+  and [dict.adgrp=Source_Funding_Tree]
+  and [dict.admethod=Admethod_Funding_Tree]
+  and [dict.store=State]
+  and [dict.BU=BU]
+  and [dict.is_neuro_id<=Exclude_Neuro_ID]
+  and [dict.APR_Group=APR_States_Funding_Tree]
+  and [dict.payfreq=PayFreq_Funding_Tree]
+)
+, all_metrics as
+(
+  select
+      applweek as cohort
+      , adgrp
+      , avg(funded) as "Funding Rate"
+      , avg(case when "left"(denygrp,1)::numeric in (3) then 1.00000 else 0.00000 end) as "Review Rate"
+      , avg(case when "left"(denygrp,1)::numeric in (4,5) then 1.00000 else 0.00000 end) as "Waste Rate"
+      , 1-avg(case when "left"(denygrp,1)::numeric in (4,5) then 1.00000 else 0.00000 end) as "Decision Rate"
+      , coalesce(
+          count(case when "left"(denygrp,1)::numeric in (9) then loanid end)::numeric/
+          nullif(count(case when "left"(denygrp,1)::numeric in (3,9) then loanid end),0)
+        ,0) as "Approval Rate"
+    from
+      post_filters as pf
+    where
+      qualified = 1
+      and applweek <= (now() at time zone 'GMT' at time zone 'America/Chicago')::date - '7 days'::interval
+    group by
+      applweek
+      , adgrp
+)
+, selected_metric as
+(
+  select
+    extract(week from cohort) as " "
+    , cohort
+    , adgrp
+    , case  when '[Waterfall_Metric]' = 'Funding Rate' then "Funding Rate"
+            when '[Waterfall_Metric]' = 'Review Rate' then "Review Rate"
+            when '[Waterfall_Metric]' = 'Waste Rate' then "Waste Rate"
+            when '[Waterfall_Metric]' = 'Decision Rate' then "Decision Rate"
+            when '[Waterfall_Metric]' = 'Approval Rate' then "Approval Rate"
+            end as selected_metric
+  from
+    all_metrics
+)
+select
+  *
+from
+  selected_metric
+order by
+  cohort desc
