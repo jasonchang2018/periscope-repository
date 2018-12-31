@@ -3,7 +3,7 @@ with post_filters as
 (
   select dict.*
     , case
-      when '[Aggregation_Level]' = 'Week' then (date_trunc('[Aggregation_Level]', dict.appldate + '1 day'::interval)::date -'1 day'::interval)::date 
+      when '[Aggregation_Level]' = 'Week' then dict.applweek
       else date_trunc('[Aggregation_Level]', dict.appldate)::date end as timestart
   from [bizops_application_details as dict]
   where [dict.appldate>=Timestart_Funding_Tree]

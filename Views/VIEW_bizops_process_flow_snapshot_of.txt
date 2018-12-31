@@ -12,12 +12,22 @@ select
           then 1 else 0 end as "Qualified"
 
   , case  when attempt_ibv_time notnull
+          and date_trunc('week', attempt_ibv_time)::date = date_trunc('week', pf.appldate)::date
           and 
             (
-              (date_trunc('week', attempt_ibv_time::date + '1 day'::interval)::date - '1 day'::interval)::date = 
-              (date_trunc('week', pf.appldate::date + '1 day'::interval)::date - '1 day'::interval)::date
+              (
+                extract(dow from now() at time zone 'GMT' at time zone 'America/Chicago') != 0
+                and extract(dow from attempt_ibv_time) < extract(dow from now() at time zone 'GMT' at time zone 'America/Chicago')
+              )
+              or
+              (
+                extract(dow from now() at time zone 'GMT' at time zone 'America/Chicago') = 0
+                and extract(dow from attempt_ibv_time) > extract(dow from now() at time zone 'GMT' at time zone 'America/Chicago')
+              )
+--               extract(dow from attempt_ibv_time) < extract(dow from now() at time zone 'GMT' at time zone 'America/Chicago')
+--               or
+--               extract(dow from attempt_ibv_time) = 0
             )
-          and extract(dow from attempt_ibv_time) < extract(dow from now() at time zone 'GMT' at time zone 'America/Chicago')
           then 1 else 0 end as "Attempted IBV"
 
   , case  when c_ash.old_value = 'BANK VERIFICATION COMPLETED' 
@@ -32,12 +42,22 @@ select
           then 1 else 0 end as "CS"
 
   , case  when cs_decision_time notnull
+          and date_trunc('week', cs_decision_time)::date = date_trunc('week', pf.appldate)::date
           and 
             (
-              (date_trunc('week', cs_decision_time::date + '1 day'::interval)::date - '1 day'::interval)::date = 
-              (date_trunc('week', pf.appldate::date + '1 day'::interval)::date - '1 day'::interval)::date
+              (
+                extract(dow from now() at time zone 'GMT' at time zone 'America/Chicago') != 0
+                and extract(dow from cs_decision_time) < extract(dow from now() at time zone 'GMT' at time zone 'America/Chicago')
+              )
+              or
+              (
+                extract(dow from now() at time zone 'GMT' at time zone 'America/Chicago') = 0
+                and extract(dow from cs_decision_time) > extract(dow from now() at time zone 'GMT' at time zone 'America/Chicago')
+              )
+--               extract(dow from cs_decision_time) < extract(dow from now() at time zone 'GMT' at time zone 'America/Chicago')
+--               or
+--               extract(dow from cs_decision_time) = 0
             )
-          and extract(dow from cs_decision_time) < extract(dow from now() at time zone 'GMT' at time zone 'America/Chicago')
           then 1 else 0 end as "CS Decisioned"
 
   , case  when new_value = 'LOAN APPROVED'
@@ -47,8 +67,20 @@ select
     inner join
       cloudlending.application_status_history as c_ash
       on c_ash.application = pf.application
-      and (date_trunc('week', (c_ash.createddate at time zone 'GMT' at time zone 'America/Chicago')::date + '1 day'::interval)::date - '1 day'::interval)::date = 
-          (date_trunc('week', pf.appldate::date + '1 day'::interval)::date - '1 day'::interval)::date
+      and date_trunc('week', (c_ash.createddate at time zone 'GMT' at time zone 'America/Chicago'))::date = date_trunc('week', pf.appldate)::date
 where
-  extract(dow from c_ash.createddate at time zone 'GMT' at time zone 'America/Chicago') < extract(dow from now() at time zone 'GMT' at time zone 'America/Chicago')
-  and extract(dow from now() at time zone 'GMT' at time zone 'America/Chicago') > 0
+  (
+    (
+      extract(dow from now() at time zone 'GMT' at time zone 'America/Chicago') != 0
+      and extract(dow from c_ash.createddate at time zone 'GMT' at time zone 'America/Chicago') < extract(dow from now() at time zone 'GMT' at time zone 'America/Chicago')
+    )
+    or
+    (
+      extract(dow from now() at time zone 'GMT' at time zone 'America/Chicago') = 0
+      and extract(dow from c_ash.createddate at time zone 'GMT' at time zone 'America/Chicago') > extract(dow from now() at time zone 'GMT' at time zone 'America/Chicago')
+    )
+--     extract(dow from cs_decision_time) < extract(dow from now() at time zone 'GMT' at time zone 'America/Chicago')
+--     or
+--     extract(dow from cs_decision_time) = 0
+  )
+  and extract(dow from now() at time zone 'GMT' at time zone 'America/Chicago') != 1

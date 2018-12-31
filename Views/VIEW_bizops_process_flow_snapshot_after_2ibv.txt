@@ -21,13 +21,20 @@ select
                 and
                   (
                     (
-                      extract(dow from now() at time zone 'GMT' at time zone 'America/Chicago') != 0
-                      and extract(dow from attempt_ibv_time) < extract(dow from now() at time zone 'GMT' at time zone 'America/Chicago')
+                      extract(dow from now() at time zone 'GMT' at time zone 'America/Chicago') >= 2
+                      and extract(dow from attempt_ibv_time) < extract(dow from now() at time zone 'GMT' at time zone 'America/Chicago') - 1
+                    )
+                    or
+                    (
+                      extract(dow from now() at time zone 'GMT' at time zone 'America/Chicago') = 1
+                      and extract(dow from attempt_ibv_time) > extract(dow from now() at time zone 'GMT' at time zone 'America/Chicago')
+                      and extract(dow from attempt_ibv_time) <= 6
                     )
                     or
                     (
                       extract(dow from now() at time zone 'GMT' at time zone 'America/Chicago') = 0
                       and extract(dow from attempt_ibv_time) > extract(dow from now() at time zone 'GMT' at time zone 'America/Chicago')
+                      and extract(dow from attempt_ibv_time) <= 5
                     )
 --                     extract(dow from attempt_ibv_time) < extract(dow from now() at time zone 'GMT' at time zone 'America/Chicago')
 --                     or
@@ -58,13 +65,20 @@ select
                 and
                   (
                     (
-                      extract(dow from now() at time zone 'GMT' at time zone 'America/Chicago') != 0
-                      and extract(dow from cs_decision_time) < extract(dow from now() at time zone 'GMT' at time zone 'America/Chicago')
+                      extract(dow from now() at time zone 'GMT' at time zone 'America/Chicago') >= 2
+                      and extract(dow from cs_decision_time) < extract(dow from now() at time zone 'GMT' at time zone 'America/Chicago') - 1
+                    )
+                    or
+                    (
+                      extract(dow from now() at time zone 'GMT' at time zone 'America/Chicago') = 1
+                      and extract(dow from cs_decision_time) > extract(dow from now() at time zone 'GMT' at time zone 'America/Chicago')
+                      and extract(dow from cs_decision_time) <= 6
                     )
                     or
                     (
                       extract(dow from now() at time zone 'GMT' at time zone 'America/Chicago') = 0
                       and extract(dow from cs_decision_time) > extract(dow from now() at time zone 'GMT' at time zone 'America/Chicago')
+                      and extract(dow from cs_decision_time) <= 5
                     )
 --                     extract(dow from cs_decision_time) < extract(dow from now() at time zone 'GMT' at time zone 'America/Chicago')
 --                     or
@@ -98,18 +112,25 @@ where
       and
         (
           (
-            extract(dow from now() at time zone 'GMT' at time zone 'America/Chicago') != 0
-            and extract(dow from c_ash.createddate at time zone 'GMT' at time zone 'America/Chicago') < extract(dow from now() at time zone 'GMT' at time zone 'America/Chicago')
+            extract(dow from now() at time zone 'GMT' at time zone 'America/Chicago') >= 2
+            and extract(dow from c_ash.createddate at time zone 'GMT' at time zone 'America/Chicago') < extract(dow from now() at time zone 'GMT' at time zone 'America/Chicago') - 1
+          )
+          or
+          (
+            extract(dow from now() at time zone 'GMT' at time zone 'America/Chicago') = 1
+            and extract(dow from c_ash.createddate at time zone 'GMT' at time zone 'America/Chicago') > extract(dow from now() at time zone 'GMT' at time zone 'America/Chicago')
+            and extract(dow from c_ash.createddate at time zone 'GMT' at time zone 'America/Chicago') <= 6
           )
           or
           (
             extract(dow from now() at time zone 'GMT' at time zone 'America/Chicago') = 0
             and extract(dow from c_ash.createddate at time zone 'GMT' at time zone 'America/Chicago') > extract(dow from now() at time zone 'GMT' at time zone 'America/Chicago')
+            and extract(dow from c_ash.createddate at time zone 'GMT' at time zone 'America/Chicago') <= 5
           )
---           extract(dow from c_ash.createddate at time zone 'GMT' at time zone 'America/Chicago') < extract(dow from now() at time zone 'GMT' at time zone 'America/Chicago')
---           or
---           extract(dow from c_ash.createddate at time zone 'GMT' at time zone 'America/Chicago') = 0
+          extract(dow from c_ash.createddate at time zone 'GMT' at time zone 'America/Chicago') < extract(dow from now() at time zone 'GMT' at time zone 'America/Chicago')
+          or
+          extract(dow from c_ash.createddate at time zone 'GMT' at time zone 'America/Chicago') = 0
         )
     )
   )
-  and pf.applweek <= (now() at time zone 'GMT' at time zone 'America/Chicago')::date - '7 days'::interval
+  and pf.applweek <= (now() at time zone 'GMT' at time zone 'America/Chicago')::date - '8 days'::interval

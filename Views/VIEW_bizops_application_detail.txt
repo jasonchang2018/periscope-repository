@@ -14,7 +14,7 @@ select
 
     -- Timestamps
     , a.appldate
-    , (date_trunc('week', a.appldate::date + '1 day'::interval)::date - '1 day'::interval)::date as applweek
+    , date_trunc('week', a.appldate) as applweek
     , a.adjappl
     , extract(week from a.appldate) as week_num
     , extract(month from a.appldate) as month_num
