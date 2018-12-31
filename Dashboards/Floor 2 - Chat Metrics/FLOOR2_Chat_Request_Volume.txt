@@ -1,0 +1,41 @@
+with eligible_chats as
+(
+  select
+    c_user.name
+    , case
+      when '[Aggregation_Level]' = 'Week' then (date_trunc('[Aggregation_Level]', requesttime::date + '1 day'::interval)::date -'1 day'::interval)::date 
+      when '[Aggregation_Level]' = 'Hour' then date_trunc('[Aggregation_Level]', requesttime)
+      else date_trunc('[Aggregation_Level]', requesttime)::date end as timestart
+    , c_trans.id
+    , status
+    , case  when c_user.name in ('Alana White', 'Marilyn Alvarado', 'Jewel Anderson', 'Megan Riley') and requesttime::date >= '2018-09-10' then 1
+            else 0 
+            end as eligible
+  from
+    cloudlending.livechattranscript as c_trans
+    inner join
+      (
+        select
+          id
+          , name
+        from
+          cloudlending.user as c_user
+        where
+          name in ('Alana White', 'Marilyn Alvarado', 'Jewel Anderson', 'Megan Riley')
+      ) as c_user
+      on c_trans.ownerid = c_user.id
+  where 
+    [requesttime>=Timestart_Funding_Tree]
+    and [requesttime<=Timeend_Funding_Tree]
+)
+select
+  timestart
+  , count(distinct case when timestart notnull then id end) as "Chats Requested"
+  , count(distinct case when status = 'Completed' then id end) as "Chats Completed"
+  , count(distinct case when status = 'Missed' then id end) as "Chats Missed"
+from
+  eligible_chats
+where
+  eligible = 1
+group by
+  timestart
