@@ -1,7 +1,8 @@
 library(ggplot2)
 
-levers = c("2BV/Q", "3Pass Scorecard", "4Contract Signed", "5Decisioned", "6Funded/Decisioned", "Funding Rate")
-bridge = c((df$bvq[which(df$period == "P2")]-df$bvq[which(df$period == "P1")])
+levers = c("2Attempt IBV", "3Complete IBV", "4Pass Scorecard", "5Contract Signed", "6Decisioned", "7Funded/Decisioned", "Funding Rate")
+bridge = c((df$attemptq[which(df$period == "P2")]-df$attemptq[which(df$period == "P1")])
+           , (df$bvattempt[which(df$period == "P2")]-df$bvattempt[which(df$period == "P1")])
            , (df$scorecardbv[which(df$period == "P2")]-df$scorecardbv[which(df$period == "P1")])
            , (df$contractscorecard[which(df$period == "P2")]-df$contractscorecard[which(df$period == "P1")])
            , (df$decisionedcontract[which(df$period == "P2")]-df$decisionedcontract[which(df$period == "P1")])
@@ -13,7 +14,8 @@ color = c(ifelse(bridge[1] >= 0, "green", "red")
           , ifelse(bridge[3] >= 0, "green", "red")
           , ifelse(bridge[4] >= 0, "green", "red")
           , ifelse(bridge[5] >= 0, "green", "red")
-          , ifelse(bridge[6] >= 0, "green", "red"))
+          , ifelse(bridge[6] >= 0, "green", "red")
+          , ifelse(bridge[7] >= 0, "green", "red"))
 
 values_format = c(paste(round(10000*bridge, 0), "bps", sep = " "))
 

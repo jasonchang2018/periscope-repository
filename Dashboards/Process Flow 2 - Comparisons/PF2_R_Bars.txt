@@ -1,7 +1,7 @@
 library(ggplot2)
 
-levers2 = rep(c("2BV/Q", "3Pass Scorecard", "4Contract Signed", "5Decisioned", "6Funded/Decisioned"),2)
-values = unlist(c(df[which(df$period == "P1"), 3:7], df[which(df$period == "P2"), 3:7])) #P1 THEN P2
+levers2 = rep(c("2Attempt/Q", '3BV/Attempt', "4Pass Scorecard", "5Contract Signed", "6Decisioned", "7Funded/Decisioned"),2)
+values = unlist(c(df[which(df$period == "P1"), 3:8], df[which(df$period == "P2"), 3:8])) #P1 THEN P2
 values_format = paste(round(100*values,1), "%", sep = "")
 period = c(rep("P1", length(levers2)/2), rep("P2", length(levers2)/2))
 
